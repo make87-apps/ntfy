@@ -2,6 +2,19 @@ build_kit:
   name: python3
   version: latest
 provider_endpoints:
-  - name: EXAMPLE_ENDPOINT
-    requester_message_type: make87_messages.text.text_plain.PlainText
-    provider_message_type: make87_messages.text.text_plain.PlainText
+  - name: NOTIFICATION_SERVICE
+    requester_message_type: make87_ntfy.publish.MessagePayload
+    provider_message_type: make87_messages.primitive.bool.Bool
+config:
+  values:
+    - name: NTFY_API_TOKEN
+      description: "Your personal ntfy API Token"
+      required: true
+      secret: true
+    - name: NTFY_URL
+      description: "The ntfy URL to POST to. Default: https://ntfy.sh. 
+        If you are self-hosting ntfy, set this to your server URL.
+        If URL has a path, it will be used as the topic name (and override anything provided in the `MessagePayload` message).
+        "
+      default_value: "https://ntfy.sh"
+      required: false
