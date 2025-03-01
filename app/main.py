@@ -58,7 +58,7 @@ def main():
 
         response = requests.post(
             post_url_base,
-            data=message,  # Message body
+            data=post_dict,  # Message body
             headers={
                 "Authorization": f"Bearer {api_token}",
             },
