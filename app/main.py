@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 from urllib.parse import urlparse
@@ -58,7 +59,7 @@ def main():
 
         response = requests.post(
             post_url_base,
-            data=post_dict,  # Message body
+            data=json.dumps(post_dict),  # Message body
             headers={
                 "Authorization": f"Bearer {api_token}",
             },
