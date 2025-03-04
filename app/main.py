@@ -12,31 +12,60 @@ from make87_ntfy.publish_pb2 import MessagePayload
 from google.protobuf.json_format import MessageToDict
 
 
-def ntfy_proto_to_dict(proto_message: MessagePayload) -> dict[str, Any]:
+def ntfy_proto_to_request_components(proto_message):
     """
-    Converts a MessagePayload proto instance into a dictionary per the official schema.
+    Converts a MessagePayload proto instance into a dictionary of headers.
+
+    Returns:
+        tuple: (topic, message, headers_dict)
     """
+    # Convert proto to dictionary while preserving field names
     message_dict = MessageToDict(proto_message, preserving_proto_field_name=True)
 
-    # Convert priority enum to its integer value
-    if "priority" in message_dict:
-        message_dict["priority"] = proto_message.priority
+    # Extract topic and message if available
+    topic = message_dict.get("topic", None)
+    message = message_dict.get("message", None)
 
-    # Convert actions oneof field into expected format
+    # Prepare headers
+    headers = {}
+
+    # Process all other fields into headers
+    for key, value in message_dict.items():
+        if key in ["topic", "message", "actions"]:
+            continue  # Skip these as they are handled separately
+
+        header_key = f"X-{key.capitalize()}"  # Capitalize first letter
+        if isinstance(value, list):  # Convert lists to comma-separated values
+            headers[header_key] = ",".join(map(str, value))
+        elif isinstance(value, bool):  # Convert booleans to lowercase strings
+            headers[header_key] = str(value).lower()
+        else:
+            headers[header_key] = str(value)
+
+    # Handle actions separately
     if "actions" in message_dict:
+        action_headers = []
         for action in message_dict["actions"]:
+            label = action.get("label", "Unknown")
+            clear = action.get("clear", "false")  # Default to false
             if "view" in action:
-                action["action"] = "view"
-                action["url"] = action.pop("view")["url"]
+                action_headers.append(f"view, {label}, {action['view']['url']}, clear={clear}")
             elif "broadcast" in action:
-                action["action"] = "broadcast"
-                action["extras"] = action.pop("broadcast")["extras"]
+                extras = ",".join([f"{k}={v}" for k, v in action["broadcast"]["extras"].items()])
+                action_headers.append(f"broadcast, {label}, {extras}, clear={clear}")
             elif "http" in action:
-                action["action"] = "http"
-                http_fields = action.pop("http")
-                action.update(http_fields)
+                http_fields = action["http"]
+                method = http_fields.get("method", "GET")
+                url = http_fields.get("url", "Unknown")
+                headers_str = ",".join([f"{k}={v}" for k, v in http_fields.get("headers", {}).items()])
+                body = http_fields.get("body", "")
+                action_headers.append(
+                    f"http, {label}, {method} {url}, headers={headers_str}, body={body}, clear={clear}"
+                )
 
-    return message_dict
+        headers["X-Actions"] = "; ".join(action_headers)
+
+    return topic, message, headers
 
 
 def main():
@@ -53,15 +82,19 @@ def main():
     )
 
     def callback(message: MessagePayload) -> Bool:
-        post_dict = ntfy_proto_to_dict(message)
-        if post_url_path:
-            post_dict["topic"] = post_url_path
+        nonlocal post_url_path, post_url_base
+
+        topic, message, headers = ntfy_proto_to_request_components(message)
+
+        if not post_url_path and topic is not None:
+            post_url_path = topic
 
         response = requests.post(
             post_url_base,
-            data=json.dumps(post_dict),  # Message body
+            data=message.encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {api_token}",
+                **headers,
             },
         )
 
