@@ -31,11 +31,13 @@ def ntfy_proto_to_request_components(proto_message):
 
     # Process all other fields into headers
     for key, value in message_dict.items():
-        if key in ["topic", "message", "actions"]:
-            continue  # Skip these as they are handled separately
+        if key in ["topic", "message", "actions", "header"]:
+            continue  # Skip these as they are handled separately, or not at all
 
         header_key = f"X-{key.capitalize()}"  # Capitalize first letter
-        if isinstance(value, list):  # Convert lists to comma-separated values
+        if key == "priority":  # Convert enum name to integer
+            headers[header_key] = str(proto_message.priority)
+        elif isinstance(value, list):  # Convert lists to comma-separated values
             headers[header_key] = ",".join(map(str, value))
         elif isinstance(value, bool):  # Convert booleans to lowercase strings
             headers[header_key] = str(value).lower()
@@ -90,7 +92,7 @@ def main():
             post_url_path = topic
 
         response = requests.post(
-            post_url_base,
+            f"{post_url_base}/{post_url_path}",
             data=message.encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {api_token}",
