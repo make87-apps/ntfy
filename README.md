@@ -1,1 +1,1 @@
-# Provide Endpoint Template for Python
+# Notification Service for ntfy.sh
