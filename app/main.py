@@ -74,23 +74,24 @@ def main():
     post_url = make87.get_config_value("NTFY_URL", "https://ntfy.sh", decode=str)
     post_url = urlparse(post_url)
     post_url_base = f"{post_url.scheme}://{post_url.netloc}"
-    post_url_path = post_url.path.removeprefix("/").removesuffix("/")
 
     endpoint = make87.get_provider(
         name="NOTIFICATION_SERVICE", requester_message_type=MessagePayload, provider_message_type=Bool
     )
 
     def callback(message: MessagePayload) -> Bool:
-        nonlocal post_url_path, post_url_base
+        # Each callback constructs its own post_url_path
+        topic, msg_text, headers = ntfy_proto_to_request_components(message)
 
-        topic, message, headers = ntfy_proto_to_request_components(message)
-
-        if not post_url_path and topic is not None:
+        # Use topic as the path if present, otherwise use the path from the config URL
+        if topic:
             post_url_path = topic
+        else:
+            post_url_path = post_url.path.removeprefix("/").removesuffix("/")
 
         response = requests.post(
             f"{post_url_base}/{post_url_path}",
-            data=message.encode("utf-8"),
+            data=msg_text.encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {api_token}",
                 **headers,
